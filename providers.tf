@@ -1,7 +1,8 @@
-provider "aws" {
-  alias = "acm"
-}
-
-provider "aws" {
-  alias = "route53"
+terraform {
+  required_providers {
+    aws = {
+      source                = "hashicorp/aws"
+      configuration_aliases = [aws.virginia]
+    }
+  }
 }

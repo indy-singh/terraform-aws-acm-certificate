@@ -1,27 +1,30 @@
 resource "aws_acm_certificate" "main" {
-  provider = "aws.acm"
-  domain_name = "${var.domain_names[0]}"
-  subject_alternative_names = "${slice(var.domain_names, 1, length(var.domain_names))}"
-  validation_method = "DNS"
-  tags {
-    Name = "${replace(var.domain_names[0], "*.", "star.")}"
-    terraform = "true"
-  }
+  provider                  = aws.virginia
+  domain_name               = keys(var.zone_ids)[0]
+  subject_alternative_names = slice(keys(var.zone_ids), 1, length(var.zone_ids))
+  validation_method         = "DNS"
 }
 
 resource "aws_route53_record" "validation" {
-  provider = "aws.route53"
-  count = "${length(var.domain_names)}"
-  name = "${lookup(aws_acm_certificate.main.domain_validation_options[count.index], "resource_record_name")}"
-  type = "${lookup(aws_acm_certificate.main.domain_validation_options[count.index], "resource_record_type")}"
-  # default required for zone_ids lookup because https://github.com/hashicorp/terraform/issues/11574
-  zone_id = "${var.zone_id != "" ? var.zone_id : lookup(var.zone_ids, element(var.domain_names, count.index), false)}"
-  records = ["${lookup(aws_acm_certificate.main.domain_validation_options[count.index], "resource_record_value")}"]
-  ttl = 60
+  provider = aws.virginia
+  for_each = {
+    for dvo in aws_acm_certificate.main.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = lookup(var.zone_ids, "${each.key}")
 }
 
 resource "aws_acm_certificate_validation" "main" {
-  provider = "aws.acm"
-  certificate_arn = "${aws_acm_certificate.main.arn}"
-  validation_record_fqdns = ["${aws_route53_record.validation.*.fqdn}"]
+  provider                = aws.virginia
+  certificate_arn         = aws_acm_certificate.main.arn
+  validation_record_fqdns = [for rec in aws_route53_record.validation : rec.fqdn]
 }
