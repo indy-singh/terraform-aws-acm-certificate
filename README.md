@@ -29,7 +29,7 @@ module "my_acm_certificate" {
   }
 
   providers = {
-    aws.virginia = aws.virginia
+    aws.region = aws.virginia
   }
 }
 ```
